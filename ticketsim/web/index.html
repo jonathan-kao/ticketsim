@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ticketsim - ticket sale simulator</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --bg-2: #eaeff7;
+    --panel: #ffffff;
+    --panel-2: #f7f9fc;
+    --line: #e2e8f1;
+    --line-soft: #eef1f7;
+    --fg: #1a2230;
+    --dim: #5c6675;
+    --faint: #6b7686;
+    --accent: #2f5fe0;
+    --accent-soft: #e9efff;
+    --ok: #15a34a;
+    --warn: #b45309;
+    --bad: #e11d48;
+    --batch: #15a34a;
+    --buyer: #9aa6b8;
+    --idle: #6b7686;
+    --shadow-sm: 0 1px 2px rgba(23,35,64,.05);
+    --shadow: 0 1px 2px rgba(23,35,64,.04), 0 10px 30px rgba(23,35,64,.07);
+    --radius: 14px;
+  }
+  body.dark {
+    --bg: #0c1017;
+    --bg-2: #111722;
+    --panel: #151b26;
+    --panel-2: #1b2231;
+    --line: #242c3b;
+    --line-soft: #1e2532;
+    --fg: #e4e9f2;
+    --dim: #98a5b8;
+    --faint: #7f8b9d;
+    --accent: #6b9bff;
+    --accent-soft: #1b2740;
+    --ok: #3ecf70;
+    --warn: #e5a13a;
+    --bad: #f26d7d;
+    --batch: #3ecf70;
+    --buyer: #47536a;
+    --idle: #7f8b9d;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 12px 32px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--fg); font: 15px/1.55 -apple-system, "PingFang TC", "Noto Sans TC",
+    "Helvetica Neue", Menlo, monospace;
+    background:
+      radial-gradient(1200px 600px at 12% -10%, var(--bg-2), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, var(--bg-2), transparent 55%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; padding: 10px 16px;
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 5; box-shadow: var(--shadow-sm);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: .01em; }
+  .tag { font-size: 12px; color: var(--dim); border: 1px solid var(--line);
+         padding: 2px 9px; border-radius: 999px; background: var(--panel-2); }
+  .lamp { width: 10px; height: 10px; border-radius: 50%; background: var(--idle);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--idle) 18%, transparent); }
+  .lamp.run { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+  .lamp.pause { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 20%, transparent); }
+  .lamp.busy { background: var(--accent); animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+  .grow { flex: 1; }
+  .clock { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .clock b { color: var(--fg); font-weight: 650; }
+
+  main { display: block; padding: 14px; }
+  .col { width: 100%; max-width: 1680px; margin: 0 auto; }
+  section.card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow);
+  }
+  section.card > h2 {
+    font-size: 12.5px; margin: 0 0 12px; color: var(--dim); font-weight: 650;
+    text-transform: uppercase; letter-spacing: .1em; display: flex; align-items: center; gap: 8px;
+  }
+  section.card > h2::before {
+    content: ""; width: 3px; height: 13px; border-radius: 2px; background: var(--accent);
+  }
+  .hint { color: var(--faint); font-weight: 400; text-transform: none; letter-spacing: 0;
+          margin-left: auto; font-size: 12px; }
+
+  h3.grp { font-size: 12.5px; color: var(--accent); margin: 14px 0 8px; letter-spacing: .04em;
+            grid-column: 1 / -1; font-weight: 650; }
+  #params { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 4px 24px; margin-top: 10px; }
+  #params table { grid-column: 1 / -1; }
+  label.row { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 10px; align-items: center;
+              margin: 3px 0; font-size: 13.5px; }
+  /* labels wrap instead of being cut off */
+  label.row span { color: var(--dim); line-height: 1.3; overflow-wrap: anywhere; }
+  #params .add-session { grid-column: 1 / -1; justify-self: start; margin-top: 6px; }
+  .placeholder { color: var(--faint); font-size: 13px; }
+  input, select, textarea {
+    width: 100%; background: var(--panel-2); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 5px 9px; font: inherit; font-size: 13px;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  input[type=checkbox] { width: auto; justify-self: start; accent-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
+  th { color: var(--faint); font-weight: 600; }
+  tbody tr:hover { background: var(--panel-2); }
+
+  .btn {
+    background: var(--panel-2); color: var(--fg); border: 1px solid var(--line); border-radius: 9px;
+    padding: 6px 13px; cursor: pointer; font: inherit; font-size: 13.5px;
+    transition: transform .12s, border-color .15s, box-shadow .15s, background .15s;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--fg); transform: translateY(-1px);
+                              box-shadow: 0 4px 14px rgba(59,110,245,.16); }
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: .42; cursor: default; }
+  .btn.primary { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 82%, #000));
+                  border-color: transparent; color: #fff; font-weight: 600;
+                  box-shadow: 0 4px 14px rgba(59,110,245,.28); }
+  .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .speed { display: inline-flex; align-items: center; gap: 9px; margin-left: 10px;
+           background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+           padding: 3px 12px; }
+  .speed input[type=range] { width: 170px; padding: 0; background: transparent; border: none; }
+  input[type=range] { accent-color: var(--accent); }
+
+  #chart { width: 100%; height: auto; aspect-ratio: 1000 / 340; display: block;
+           background: var(--panel); border-radius: 10px; cursor: crosshair;
+           border: 1px solid var(--line-soft); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--dim); margin: 10px 0 0; font-size: 12.5px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px;
+              vertical-align: -1px; }
+
+  /* the indicators, as small cards */
+  .kv { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .kv .kvgrp { flex: 1 1 100%; }
+  .kv .kvgrp h3 { font-size: 11.5px; font-weight: 600; color: var(--dim); margin: 6px 0 6px;
+                   display: flex; align-items: baseline; gap: 8px; }
+  .kv .kvgrp h3 span { font-size: 10.5px; font-weight: 400; opacity: .8; }
+  .kv .kvrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  .kv .chip { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 10px;
+              padding: 7px 12px; min-width: 108px; transition: border-color .15s, transform .12s; }
+  .kv .chip:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); transform: translateY(-1px); }
+  .kv .chip i { display: block; font-style: normal; font-size: 11.5px; color: var(--dim); }
+  .kv .chip b { display: block; font-size: 18px; font-weight: 650; margin-top: 1px;
+                font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+  .cellstrip { display: flex; gap: 2px; height: 30px; margin: 6px 0 4px; align-items: flex-end; }
+  .cellstrip i { flex: 1; background: var(--buyer); border-radius: 2px 2px 1px 1px; min-height: 2px;
+                 opacity: .9; transition: height .2s ease, background .2s; }
+  .cellstrip i.empty { background: var(--bad); opacity: .8; }
+  .alrow { margin-bottom: 12px; }
+  .alrow .ttl { color: var(--dim); font-size: 12px; display: flex; justify-content: space-between;
+                margin-bottom: 2px; }
+
+  .err { color: var(--bad); font-size: 12.5px; margin-top: 6px; }
+  .err:empty { display: none; }
+
+  .tip { position: fixed; z-index: 30; pointer-events: none; display: none;
+         background: color-mix(in srgb, var(--panel) 96%, transparent);
+         border: 1px solid var(--line); border-radius: 12px;
+         padding: 11px 13px; font-size: 12.5px; max-width: 380px;
+         box-shadow: 0 18px 44px rgba(15,25,45,.18);
+         -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .tip h4 { margin: 0 0 6px; font-size: 13px; color: var(--batch); font-weight: 650; }
+  .tip.line h4 { color: var(--accent); }
+  .tip .sec { color: var(--accent); margin: 7px 0 3px; font-size: 11px; letter-spacing: .07em;
+              text-transform: uppercase; }
+  .tip table { font-size: 12.5px; }
+  .tip td { padding: 0 10px 0 0; border: 0; vertical-align: top; }
+  .tip td.k { color: var(--dim); white-space: nowrap; }
+  .tip .warn { color: var(--warn); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  #progress { width: 190px; margin-left: auto; height: 7px; background: var(--panel-2); border-radius: 999px; overflow: hidden;
+              border: 1px solid var(--line-soft); }
+  #progress i { display: block; height: 100%; width: 0;
+                background: linear-gradient(90deg, var(--accent), var(--ok)); }
+  @media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    main { padding: 10px; }
+    header { gap: 10px; padding: 8px 12px; }
+    .tag, .hint { display: none; }
+    #status { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+              max-width: 46vw; }
+    section.card { padding: 14px; }
+    .speed { margin-left: 0; }
+    .speed input[type=range] { width: 120px; }
+    .kv .chip { min-width: 0; flex: 1 1 40%; }
+    label.row { grid-template-columns: 1fr 96px; }
+  }
+  #load { width: 100%; height: auto; aspect-ratio: 1000 / 150; display: block; margin-top: 12px;
+          background: var(--panel); border-radius: 10px; border: 1px solid var(--line-soft); }
+  .sessions { display: grid; gap: 10px; }
+  .sess { background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 11px;
+          padding: 10px 12px; }
+  .sess .ttl { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .sess .ttl b { font-weight: 650; }
+  .sess .ttl span { color: var(--dim); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .sess .bar { height: 8px; border-radius: 999px; background: var(--line-soft); overflow: hidden;
+               margin: 7px 0 6px; }
+  .sess .bar i { display: block; height: 100%; border-radius: 999px; }
+  .sess .nums { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<header>
+  <span class="lamp" id="lamp"></span>
+  <h1>ticketsim</h1>
+  <span class="tag" id="mech">ticket sale simulator</span>
+  <span class="grow"></span>
+  <span class="clock" id="status">idle</span>
+  <button class="btn" id="btn-theme" title="Toggle dark / light">🌙</button>
+</header>
+
+<main>
+  <div class="col">
+    <section class="card">
+      <h2>Playback</h2>
+      <div class="row-btns">
+        <button class="btn primary" id="btn-run">▶ Run</button>
+        <button class="btn" id="btn-play" disabled>⏸ Pause</button>
+        <button class="btn" id="btn-step" disabled>⏭ Next event</button>
+        <button class="btn" id="btn-rewind" disabled>⟲ Rewind</button>
+        <span class="speed">
+          <span class="clock">speed</span>
+          <input type="range" id="speed" min="1" max="500" step="1" value="30">
+          <b class="clock" id="speed-val">30×</b>
+        </span>
+        <span class="grow"></span>
+        <span class="clock">t = <b id="clock">0.0</b> / <span id="horizon">-</span> s</span>
+        <div id="progress"><i></i></div>
+      </div>
+      <div class="err" id="err"></div>
+    </section>
+
+    <section class="card">
+      <h2>Timeline - tickets on sale and platform load
+        <span class="hint">wheel: zoom around the playhead · drag: pan · click: jump · double click: reset</span>
+      </h2>
+      <svg id="chart" viewBox="0 0 1000 340" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="legend" id="legend"></div>
+      <svg id="load" viewBox="0 0 1000 150" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="kv" id="metrics"></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>Sessions</h2>
+        <div class="sessions" id="sessions"><div class="placeholder">Press Run to see how every session sells.</div></div>
+      </section>
+      <section class="card">
+        <h2>Stock per cell <span class="hint">bar = remaining / capacity · red = empty</span></h2>
+        <div id="cells"><div class="placeholder">Press Run to see the stock of every cell.</div></div>
+      </section>
+    </div>
+
+    <section class="card" id="params-card">
+      <h2>Parameters (sent when you press Run)</h2>
+      <div class="row-btns" style="align-items:center">
+        <span class="clock">scenario</span>
+        <select id="preset" style="width:auto;min-width:180px"></select>
+        <button class="btn" id="btn-apply">Load scenario</button>
+        <button class="btn" id="btn-reset-params">Reset</button>
+        <span class="grow"></span>
+        <details style="display:inline-block">
+          <summary style="cursor:pointer;color:var(--dim);font-size:12px">advanced: the whole configuration as JSON</summary>
+          <textarea id="json" rows="6" spellcheck="false"
+            style="width:100%;margin-top:6px;font:12px/1.4 Menlo,monospace"></textarea>
+          <div class="row-btns" style="margin-top:6px">
+            <button class="btn" id="btn-json-load">Load JSON</button>
+            <button class="btn" id="btn-json-dump">Export the form</button>
+          </div>
+          <div class="err" id="json-err"></div>
+        </details>
+      </div>
+      <div id="params"></div>
+    </section>
+  </div>
+</main>
+
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+/* ===========================================================================
+ * ticketsim web UI
+ *
+ * The backend is contacted once per run: the parameters go out, the backend
+ * computes the whole scenario, the whole timeline comes back.  Playing,
+ * pausing, seeking, zooming and tooltips all happen locally afterwards.
+ * =========================================================================== */
+const $ = (id) => document.getElementById(id);
+const COLORS = ["#1a7f37", "#bf8700", "#8250df", "#cf222e", "#0a3069", "#57606a"];
+const CHART = { W: 1000, H: 340, L: 60, R: 16, T: 26, B: 28, COLS: 520 };
+const LOAD = { H: 150, T: 22, B: 22 };
+/* the load is smoothed over this many simulated seconds */
+const LOAD_WINDOW = 2.0;
+
+let SCHEMA = null, PRESETS = {}, CONFIG = null;
+let BUNDLE = null;          // the whole result (fetched once)
+let cursor = 0;             // the simulated time being shown
+let playing = false;
+let speed = 30;             // simulated seconds per wall clock second
+let lastFrame = 0;
+let zoom = null;            // {tMin, tMax}; null = automatic (folded axis)
+let chartColumns = [], markerInfo = {}, hoverColumn = null, loadSeries = [];
+
+/* ---------------------------------------------------------------- parameters */
+async function bootstrap() {
+  const data = await (await fetch("/api/bootstrap")).json();
+  SCHEMA = data.schema; PRESETS = data.presets;
+  $("mech").textContent = "ticket sale simulator · v" + data.version;
+  const sel = $("preset");
+  data.preset_names.forEach((name) => {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name; sel.appendChild(opt);
+  });
+  sel.addEventListener("change", () => applyPreset(sel.value));
+  $("btn-apply").addEventListener("click", () => applyPreset(sel.value));
+  $("btn-reset-params").addEventListener("click", () => applyPreset($("preset").value));
+  $("btn-json-load").addEventListener("click", () => {
+    try {
+      CONFIG = JSON.parse($("json").value);
+      applyToForm(); $("json-err").textContent = "";
+    } catch (err) { $("json-err").textContent = "invalid JSON: " + err.message; }
+  });
+  $("btn-json-dump").addEventListener("click", () => {
+    $("json").value = JSON.stringify(readForm(), null, 2); $("json-err").textContent = "";
+  });
+  buildForm();
+  // ?preset=... in the address (the launcher uses it)
+  const wanted = new URLSearchParams(location.search).get("preset");
+  const preset = (wanted && PRESETS[wanted]) ? wanted : "baseline";
+  sel.value = preset;
+  applyPreset(preset);
+}
+
+/* one field: <label class="row"><span>name</span><input|select></label> */
+function fieldRow(f) {
+  const label = document.createElement("label");
+  label.className = "row";
+  const span = document.createElement("span"); span.textContent = f.label; span.title = f.name;
+  const input = document.createElement(f.type === "select" ? "select" : "input");
+  input.dataset.field = f.name; input.dataset.type = f.type;
+  if (f.type === "select") {
+    (f.options || []).forEach((o) => {
+      const opt = document.createElement("option"); opt.value = o; opt.textContent = o;
+      input.appendChild(opt);
+    });
+  } else if (f.type === "bool") {
+    input.type = "checkbox";
+  } else {
+    input.type = "number";
+    input.step = f.type === "float" ? (f.step || "any") : (f.step || "1");
+    if (f.min !== undefined) input.min = f.min;
+    if (f.max !== undefined) input.max = f.max;
+  }
+  label.appendChild(span); label.appendChild(input);
+  return { label, input };
+}
+
+function buildForm() {
+  const host = $("params");
+  host.innerHTML = "";
+  for (const [group, spec] of Object.entries(SCHEMA)) {
+    const h = document.createElement("h3");
+    h.className = "grp"; h.textContent = spec.label; host.appendChild(h);
+    (spec.fields || []).forEach((f) => {
+      const { label, input } = fieldRow(f);
+      input.dataset.group = group;
+      host.appendChild(label);
+    });
+    if (spec.sessions) {
+      const h2 = document.createElement("h3");
+      h2.className = "grp"; h2.textContent = spec.sessions.label; host.appendChild(h2);
+      const table = document.createElement("table");
+      const fields = spec.sessions.fields;
+      table.innerHTML = "<thead><tr>" + fields.map((f) => `<th>${f.label}</th>`).join("") + "<th></th></tr></thead>";
+      const tbody = document.createElement("tbody"); tbody.id = "sessions-body";
+      table.appendChild(tbody); host.appendChild(table);
+      const add = document.createElement("button");
+      add.className = "btn add-session"; add.textContent = "+ session";
+      add.addEventListener("click", () =>
+        tbody.appendChild(sessionRow(fields, { key: "s" + (tbody.children.length + 1),
+                                               seats: 1000, per_buyer_limit: 2 })));
+      host.appendChild(add);
+    }
+  }
+}
+
+function sessionRow(fields, values) {
+  const tr = document.createElement("tr");
+  fields.forEach((f) => {
+    const td = document.createElement("td");
+    const input = document.createElement("input");
+    input.type = f.type === "text" ? "text" : "number";
+    if (f.type === "float") input.step = "any";
+    input.value = values[f.name] === undefined ? "" : values[f.name];
+    input.dataset.session = f.name; input.dataset.type = f.type;
+    td.appendChild(input);
+    tr.appendChild(td);
+  });
+  const td = document.createElement("td");
+  const del = document.createElement("button");
+  del.className = "btn"; del.textContent = "✕"; del.style.padding = "0 5px";
+  del.title = "remove this session";
+  del.addEventListener("click", () => tr.remove());
+  td.appendChild(del); tr.appendChild(td);
+  return tr;
+}
+
+function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  CONFIG = JSON.parse(JSON.stringify(preset));
+  applyToForm();
+  $("json").value = JSON.stringify(CONFIG, null, 2);
+}
+
+function applyToForm() {
+  const host = $("params");
+  host.querySelectorAll("[data-group]").forEach((input) => {
+    const group = CONFIG[input.dataset.group] || {};
+    const value = group[input.dataset.field];
+    if (input.type === "checkbox") { input.checked = !!value; return; }
+    const fallback = SCHEMA[input.dataset.group].fields
+      .find((f) => f.name === input.dataset.field);
+    if (value === undefined || value === null) {
+      input.value = fallback && fallback.default !== undefined ? fallback.default : "";
+      input.title = "not in the configuration - the default is used";
+    } else {
+      input.value = value; input.title = "";
+    }
+  });
+  const body = $("sessions-body");
+  body.innerHTML = "";
+  (CONFIG.scenario.sessions || []).forEach((s) =>
+    body.appendChild(sessionRow(SCHEMA.scenario.sessions.fields, s)));
+}
+
+/* read the form back into a configuration (selects and text stay strings) */
+function readForm() {
+  const out = JSON.parse(JSON.stringify(CONFIG));
+  $("params").querySelectorAll("[data-group]").forEach((input) => {
+    const g = input.dataset.group, f = input.dataset.field, t = input.dataset.type;
+    if (t === "bool") out[g][f] = input.checked;
+    else if (t === "int" || t === "float") out[g][f] = input.value === "" ? undefined : Number(input.value);
+    else out[g][f] = input.value;
+  });
+  const previous = {};
+  (CONFIG.scenario.sessions || []).forEach((s) => { previous[s.key] = s; });
+  const sessions = [];
+  $("sessions-body").querySelectorAll("tr").forEach((tr) => {
+    const edited = {};
+    tr.querySelectorAll("[data-session]").forEach((input) => {
+      const name = input.dataset.session, t = input.dataset.type;
+      if (t === "text") edited[name] = input.value;
+      else edited[name] = input.value === "" ? undefined : Number(input.value);
+    });
+    if (!edited.key) return;
+    // start from the session as loaded: fields the form does not edit (a
+    // hand-written seating plan) are kept as they are
+    sessions.push(Object.assign({}, previous[edited.key] || { cells: null }, edited));
+  });
+  out.scenario.sessions = sessions;
+  return out;
+}
+
+/* ---------------------------------------------------------------- running */
+async function startRun() {
+  const config = readForm();
+  $("btn-run").disabled = true;
+  $("lamp").className = "lamp busy";
+  setStatus("computing…");
+  $("err").textContent = "";
+  let created;
+  try {
+    const res = await post("/api/run", { config });
+    if (res.error) { $("err").textContent = res.error; $("btn-run").disabled = false; setStatus("invalid parameters"); $("lamp").className = "lamp"; return; }
+    created = res.job;
+  } catch (err) { $("err").textContent = String(err); $("btn-run").disabled = false; return; }
+  // poll the job only while it computes; once the data is here, everything is local
+  const timer = setInterval(async () => {
+    const st = await get("/api/job/" + created);
+    if (st.status === "done") {
+      clearInterval(timer);
+      $("btn-run").disabled = false;
+      loadBundle(st.bundle);
+    } else if (st.status === "error") {
+      clearInterval(timer);
+      $("btn-run").disabled = false;
+      $("err").textContent = st.error || "the run failed";
+      setStatus("failed");
+      $("lamp").className = "lamp";
+    } else {
+      setStatus(`computing… ${Math.round((st.progress || 0) * 100)}%`);
+    }
+  }, 300);
+}
+
+function loadBundle(bundle) {
+  BUNDLE = bundle;
+  cursor = 0; playing = false; zoom = null;
+  loadSeries = buildLoadSeries(bundle);
+  $("horizon").textContent = Math.round(bundle.duration);
+  $("btn-play").disabled = false; $("btn-step").disabled = false; $("btn-rewind").disabled = false;
+  setStatus("ready (local playback)");
+  $("lamp").className = "lamp";
+  renderChart();
+  updateCursorViews(true);
+  play();
+}
+
+function play() {
+  playing = true; lastFrame = performance.now();
+  $("btn-play").textContent = "⏸ Pause";
+  $("lamp").className = "lamp run";
+}
+function pause() {
+  playing = false;
+  $("btn-play").textContent = "▶ Resume";
+  $("lamp").className = "lamp pause";
+}
+function togglePlay() { playing ? pause() : play(); }
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!playing || !BUNDLE) return;
+  const dt = (now - lastFrame) / 1000;
+  lastFrame = now;
+  cursor = Math.min(BUNDLE.duration, cursor + dt * speed);
+  updateCursorViews();
+  if (cursor >= BUNDLE.duration) pause();
+}
+requestAnimationFrame(frame);
+
+$("btn-run").addEventListener("click", startRun);
+$("btn-play").addEventListener("click", togglePlay);
+$("btn-rewind").addEventListener("click", () => { cursor = 0; updateCursorViews(true); });
+$("btn-step").addEventListener("click", () => { pause(); cursor = nextEventTime(cursor); updateCursorViews(true); });
+$("speed").addEventListener("input", () => { speed = Number($("speed").value); $("speed-val").textContent = speed + "×"; });
+
+/* the next marked moment: a batch of returned seats or a sell-out */
+function nextEventTime(from) {
+  let best = BUNDLE ? BUNDLE.duration : from;
+  const consider = (t) => { if (t > from + 1e-6 && t < best) best = t; };
+  (BUNDLE ? BUNDLE.markers : []).forEach((m) => consider(m.t));
+  Object.values(BUNDLE ? BUNDLE.sessions : {}).forEach((s) => {
+    if (s.sold_out_at !== null && s.sold_out_at !== undefined) consider(s.sold_out_at);
+  });
+  return best;
+}
+
+/* ---------------------------------------------------------------- the load series */
+/* requests per second, from the cumulative counters of the samples.  A poll is
+   counted when its request is sent (the model has one answer event per request). */
+function buildLoadSeries(bundle) {
+  const samples = bundle.samples, polls = bundle.polls_per_attempt || 1;
+  const total = (s) => s.reads + s.attempts * (1 + polls) + s.orders;
+  const out = [];
+  let lo = 0;
+  for (let hi = 0; hi < samples.length; hi++) {
+    while (lo < hi && samples[hi].t - samples[lo].t > LOAD_WINDOW) lo++;
+    const span = samples[hi].t - samples[lo].t;
+    out.push([samples[hi].t, span > 0 ? (total(samples[hi]) - total(samples[lo])) / span : 0]);
+  }
+  return out;
+}
+
+/* ---------------------------------------------------------------- the chart */
+function chartModel() {
+  const samples = BUNDLE ? BUNDLE.samples : [];
+  const totals = samples.map((s) => [s.t, s.total]);
+  const sessions = BUNDLE ? Object.keys(BUNDLE.sessions) : [];
+  const now = BUNDLE ? BUNDLE.duration : 0;
+  let soldOut = 0;
+  sessions.forEach((k) => {
+    const at = BUNDLE.sessions[k].sold_out_at;
+    if (at !== null && at !== undefined) soldOut = Math.max(soldOut, at);
+  });
+  const tBreak = Math.max(20, Math.min(soldOut || 20, Math.max(20, now * 0.6)));
+  const tMax = Math.max(now * 1.02, tBreak * 1.2, 30);
+  const maxRem = Math.max(1, totals.length ? Math.max(...totals.map((p) => p[1])) : 1);
+  return { sessions, totals, now, tBreak, tMax, maxRem };
+}
+
+function axisFor(model) {
+  const inner = CHART.W - CHART.L - CHART.R;
+  if (zoom) {
+    const span = Math.max(1e-6, zoom.tMax - zoom.tMin);
+    return { x: (t) => CHART.L + ((t - zoom.tMin) / span) * inner,
+             folded: false, tMin: zoom.tMin, tMax: zoom.tMax };
+  }
+  const head = inner * 0.45, tail = inner * 0.55;
+  const tBreak = model.tBreak;
+  return { x: (t) => {
+      if (t <= tBreak) return CHART.L + (tBreak > 0 ? (t / tBreak) * head : 0);
+      const rest = Math.max(1e-9, model.tMax - tBreak);
+      return CHART.L + head + ((t - tBreak) / rest) * tail;
+    }, folded: true, tMin: 0, tMax: model.tMax, tBreak };
+}
+
+function timeAt(axis, mx) {
+  const inner = CHART.W - CHART.L - CHART.R;
+  if (!axis.folded) return axis.tMin + ((mx - CHART.L) / inner) * (axis.tMax - axis.tMin);
+  const head = inner * 0.45, tail = inner * 0.55;
+  if (mx <= CHART.L + head) return ((mx - CHART.L) / head) * axis.tBreak;
+  return axis.tBreak + ((mx - CHART.L - head) / tail) * (axis.tMax - axis.tBreak);
+}
+
+function columnize(totals, x, cols) {
+  const inner = CHART.W - CHART.L - CHART.R;
+  const buckets = new Array(cols).fill(null);
+  for (const [t, v] of totals) {
+    const col = Math.min(cols - 1, Math.max(0, Math.floor((x(t) - CHART.L) / inner * cols)));
+    const bucket = buckets[col];
+    if (!bucket) buckets[col] = { min: v, max: v, last: v, t };
+    else {
+      if (v < bucket.min) bucket.min = v;
+      if (v > bucket.max) bucket.max = v;
+      bucket.last = v; bucket.t = t;
+    }
+  }
+  return buckets;
+}
+
+/* linear interpolation between two points */
+function interp(a, b, t) {
+  if (b[0] === a[0]) return b[1];
+  return a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]);
+}
+
+/* the value of a series at a moment (interpolated, so markers sit on the line) */
+function levelAt(totals, when) {
+  if (!totals.length) return 0;
+  if (when <= totals[0][0]) return totals[0][1];
+  const last = totals[totals.length - 1];
+  if (when >= last[0]) return last[1];
+  let lo = 0, hi = totals.length - 1;
+  while (lo + 1 < hi) {
+    const mid = (lo + hi) >> 1;
+    if (totals[mid][0] <= when) lo = mid; else hi = mid;
+  }
+  return interp(totals[lo], totals[hi], when);
+}
+
+/* cut a series to the window [tMin, tMax]; the ends are interpolated */
+function clipSeries(totals, tMin, tMax) {
+  if (!totals.length) return totals;
+  const out = [];
+  if (totals[0][0] >= tMin) {
+    out.push(totals[0]);
+  } else {
+    let b = null;
+    for (const p of totals) { if (p[0] >= tMin) { b = p; break; } }
+    if (!b) return [[tMin, totals[totals.length - 1][1]]];
+    out.push([tMin, interp(totals[0], b, tMin)]);
+  }
+  for (const p of totals) if (p[0] > tMin && p[0] < tMax) out.push(p);
+  const last = totals[totals.length - 1];
+  if (last[0] <= tMax) out.push(last);
+  else {
+    let a = null, b = null;
+    for (const p of totals) { if (p[0] <= tMax) a = p; else { b = p; break; } }
+    if (a) out.push([tMax, interp(a, b, tMax)]);
+  }
+  return out;
+}
+
+/* the x axis ticks (shared by both charts) */
+function xTicks(axis, model) {
+  return axis.folded
+    ? [0, model.tBreak * 0.5, model.tBreak, model.tBreak + (model.tMax - model.tBreak) * 0.5, model.tMax]
+    : [0, 0.25, 0.5, 0.75, 1].map((f) => axis.tMin + f * (axis.tMax - axis.tMin));
+}
+
+function renderChart() {
+  const svg = $("chart");
+  const model = chartModel();
+  const axis = axisFor(model);
+  const x = axis.x, y = makeY(model.maxRem);
+  let out = `<defs>
+      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--accent)" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+      </linearGradient>
+    </defs>`;
+  for (let i = 0; i <= 4; i++) {
+    const value = model.maxRem * i / 4, yy = y(value).toFixed(1);
+    out += `<line x1="${CHART.L}" y1="${yy}" x2="${CHART.W - CHART.R}" y2="${yy}" stroke="var(--line-soft)"/>`;
+    out += `<text x="${CHART.L - 6}" y="${(+yy + 3).toFixed(1)}" fill="var(--faint)" font-size="12" text-anchor="end">${Math.round(value).toLocaleString("en-US")}</text>`;
+  }
+  xTicks(axis, model).forEach((t) => {
+    out += `<text x="${x(t).toFixed(1)}" y="${CHART.H - CHART.B + 15}" fill="var(--faint)" font-size="12" text-anchor="middle">${t.toFixed(t < 10 ? 1 : 0)}s</text>`;
+  });
+  out += `<text x="10" y="14" fill="var(--dim)" font-size="12.5">tickets on sale (all sessions)</text>`;
+  if (axis.folded) {
+    const bx = x(model.tBreak).toFixed(1);
+    out += `<line x1="${bx}" y1="${CHART.T}" x2="${bx}" y2="${CHART.H - CHART.B}" stroke="var(--line)" stroke-dasharray="3 3"/>`;
+    out += `<text x="${(+bx + 4).toFixed(1)}" y="${CHART.T + 12}" fill="var(--faint)" font-size="12">time axis folded here (${model.tBreak.toFixed(0)}s)</text>`;
+  }
+  /* the min/max band (one vertical stroke per column) and the main line */
+  const series = axis.folded ? model.totals : clipSeries(model.totals, axis.tMin, axis.tMax);
+  const buckets = columnize(series, x, CHART.COLS);
+  const line = [];
+  let bandPath = "";
+  chartColumns = [];
+  const inner = CHART.W - CHART.L - CHART.R, left = CHART.L;
+  buckets.forEach((bucket, col) => {
+    if (!bucket) return;
+    const px = left + (col / CHART.COLS) * inner;
+    bandPath += `M${px.toFixed(1)},${y(bucket.min).toFixed(1)}L${px.toFixed(1)},${y(bucket.max).toFixed(1)}`;
+  });
+  /* the main line: the interpolated value at the centre of every column */
+  const lineXY = [];
+  for (let col = 0; col <= CHART.COLS; col++) {
+    const px = left + (col / CHART.COLS) * inner;
+    const t = timeAt(axis, px);
+    const value = levelAt(series, t);
+    lineXY.push([px, value]);
+    line.push(`${px.toFixed(1)},${y(value).toFixed(1)}`);
+    chartColumns.push({ x: px, y: y(value), t, value });
+  }
+  if (bandPath) out += `<path d="${bandPath}" stroke="var(--accent)" stroke-width="3" opacity=".16" fill="none"/>`;
+  if (line.length) {
+    const area = `M${line[0].split(",")[0]},${(CHART.H - CHART.B).toFixed(1)}L` +
+                 line.join("L") + `L${line[line.length - 1].split(",")[0]},${(CHART.H - CHART.B).toFixed(1)}Z`;
+    out += `<path d="${area}" fill="url(#areaFill)"/>`;
+    out += `<polyline points="${line.join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  /* markers sit on the drawn line (the line is a sampled approximation; the
+     exact numbers are in the tooltip) */
+  const lineValueAt = (px) => {
+    if (!lineXY.length) return 0;
+    if (px <= lineXY[0][0]) return lineXY[0][1];
+    const lastPt = lineXY[lineXY.length - 1];
+    if (px >= lastPt[0]) return lastPt[1];
+    let lo = 0, hi = lineXY.length - 1;
+    while (lo + 1 < hi) {
+      const mid = (lo + hi) >> 1;
+      if (lineXY[mid][0] <= px) lo = mid; else hi = mid;
+    }
+    const a = lineXY[lo], b = lineXY[hi];
+    return a[1] + (b[1] - a[1]) * (px - a[0]) / (b[0] - a[0]);
+  };
+  markerInfo = {};
+  let markerId = 0;
+  const visible = (t) => axis.folded || (t >= axis.tMin && t <= axis.tMax);
+  const addMarker = (info, color, r, hollow) => {
+    if (!visible(info.t)) return;
+    const id = "mk" + (markerId++);
+    markerInfo[id] = Object.assign({ level: levelAt(model.totals, info.t) }, info);
+    const cx = x(info.t).toFixed(1), cy = y(lineValueAt(x(info.t))).toFixed(1);
+    out += `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="${hollow ? "var(--panel)" : color}" ` +
+           `stroke="${color}" stroke-width="1.8" data-id="${id}"></circle>`;
+    out += `<circle cx="${cx}" cy="${cy}" r="11" fill="transparent" data-id="${id}" style="cursor:pointer"></circle>`;
+  };
+  /* batches of returned seats (size grows with the batch) */
+  (BUNDLE ? BUNDLE.markers : []).forEach((m) => {
+    if (m.kind !== "cleared") return;
+    addMarker(Object.assign({ type: "batch" }, m), "var(--batch)", 3.5 + Math.min(5, Math.sqrt(m.qty) * 0.5), false);
+  });
+  /* sell-outs (one per session, in the colour of the session) */
+  model.sessions.forEach((key, index) => {
+    const at = BUNDLE.sessions[key].sold_out_at;
+    if (at === null || at === undefined) return;
+    addMarker({ type: "soldout", t: at, session: key }, COLORS[index % COLORS.length], 4.5, true);
+  });
+  /* the playhead */
+  out += `<line id="playhead" x1="0" y1="${CHART.T}" x2="0" y2="${CHART.H - CHART.B}" stroke="var(--fg)" stroke-width="1.4" opacity=".7"/>`;
+  out += `<circle id="playdot" cx="0" cy="0" r="4.5" fill="none" stroke="var(--fg)" stroke-width="1.8"/>`;
+  svg.innerHTML = out;
+  $("legend").innerHTML = `<span><i style="background:var(--accent)"></i>tickets on sale</span>` +
+    `<span><i style="background:var(--batch);border-radius:50%"></i>batch of returned seats</span>` +
+    model.sessions.map((key, index) =>
+      `<span><i style="border:2px solid ${COLORS[index % COLORS.length]};border-radius:50%;width:8px;height:8px"></i>${key} sold out</span>`).join("");
+  renderLoad(model, axis);
+}
+
+function makeY(maxRem) {
+  return (v) => CHART.T + (1 - v / maxRem) * (CHART.H - CHART.T - CHART.B);
+}
+
+/* the platform load: requests per second, on the same time axis */
+function renderLoad(model, axis) {
+  const svg = $("load");
+  const x = axis.x;
+  const series = axis.folded ? loadSeries : clipSeries(loadSeries, axis.tMin, axis.tMax);
+  const peak = Math.max(1, ...series.map((p) => p[1]));
+  const y = (v) => LOAD.T + (1 - v / peak) * (LOAD.H - LOAD.T - LOAD.B);
+  let out = `<text x="10" y="14" fill="var(--dim)" font-size="12.5">platform load (requests per second, ${LOAD_WINDOW}s average)</text>`;
+  [0, 0.5, 1].forEach((f) => {
+    const yy = y(peak * f).toFixed(1);
+    out += `<line x1="${CHART.L}" y1="${yy}" x2="${CHART.W - CHART.R}" y2="${yy}" stroke="var(--line-soft)"/>`;
+    out += `<text x="${CHART.L - 6}" y="${(+yy + 3).toFixed(1)}" fill="var(--faint)" font-size="11" text-anchor="end">${formatCount(peak * f)}</text>`;
+  });
+  xTicks(axis, model).forEach((t) => {
+    out += `<text x="${x(t).toFixed(1)}" y="${LOAD.H - 6}" fill="var(--faint)" font-size="11" text-anchor="middle">${t.toFixed(t < 10 ? 1 : 0)}s</text>`;
+  });
+  const inner = CHART.W - CHART.L - CHART.R;
+  const points = [];
+  for (let col = 0; col <= CHART.COLS; col++) {
+    const px = CHART.L + (col / CHART.COLS) * inner;
+    points.push(`${px.toFixed(1)},${y(levelAt(series, timeAt(axis, px))).toFixed(1)}`);
+  }
+  if (points.length) {
+    out += `<polyline points="${points.join(" ")}" fill="none" stroke="var(--warn)" stroke-width="1.6" stroke-linejoin="round"/>`;
+  }
+  out += `<line id="loadhead" x1="0" y1="${LOAD.T}" x2="0" y2="${LOAD.H - LOAD.B}" stroke="var(--fg)" stroke-width="1.2" opacity=".6"/>`;
+  svg.innerHTML = out;
+}
+
+function formatCount(value) {
+  if (value >= 10000) return (value / 1000).toFixed(0) + "k";
+  if (value >= 1000) return (value / 1000).toFixed(1) + "k";
+  return Math.round(value).toString();
+}
+
+/* ---------------------------------------------------------------- the playhead */
+function updateCursorViews(force) {
+  if (!BUNDLE) return;
+  $("clock").textContent = cursor.toFixed(1);
+  $("progress").firstElementChild.style.width =
+    Math.min(100, 100 * cursor / (BUNDLE.duration || 1)) + "%";
+  const model = chartModel();
+  const axis = axisFor(model);
+  const px = axis.x(cursor).toFixed(1);
+  for (const id of ["playhead", "loadhead"]) {
+    const line = document.getElementById(id);
+    if (line) { line.setAttribute("x1", px); line.setAttribute("x2", px); }
+  }
+  const dot = document.getElementById("playdot");
+  if (dot) {
+    dot.setAttribute("cx", px);
+    dot.setAttribute("cy", makeY(model.maxRem)(levelAt(model.totals, cursor)).toFixed(1));
+  }
+  renderSessions();
+  renderCells();
+  renderMetrics();
+}
+
+/* the last entry of a time-ordered list at or before t */
+function stateAt(timeline, t) {
+  if (!timeline || !timeline.length) return null;
+  let lo = 0, hi = timeline.length - 1, best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].t <= t) { best = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return timeline[best];
+}
+
+function sessionSeats(key) {
+  const labels = (BUNDLE.cell_labels || {})[key] || [];
+  return labels.reduce((sum, cell) => sum + cell[2], 0) || BUNDLE.sessions[key].seats || 0;
+}
+
+function renderSessions() {
+  const host = $("sessions");
+  if (!BUNDLE) { host.innerHTML = ""; return; }
+  const sample = stateAt(BUNDLE.samples, cursor) || { rem: {} };
+  host.innerHTML = Object.entries(BUNDLE.sessions).map(([key, s], index) => {
+    const seats = sessionSeats(key);
+    const onSale = sample.rem[key] !== undefined ? sample.rem[key] : seats;
+    const share = seats ? Math.max(0, Math.min(1, 1 - onSale / seats)) : 0;
+    const color = COLORS[index % COLORS.length];
+    const soldOut = (s.sold_out_at !== null && s.sold_out_at !== undefined)
+      ? (s.sold_out_at <= cursor ? `sold out at ${s.sold_out_at.toFixed(1)}s` : `sells out at ${s.sold_out_at.toFixed(1)}s`)
+      : "never sold out";
+    return `<div class="sess"><div class="ttl"><b style="color:${color}">${s.name || key}</b>` +
+      `<span>${onSale.toLocaleString()} of ${seats.toLocaleString()} on sale · ${soldOut}</span></div>` +
+      `<div class="bar"><i style="width:${(share * 100).toFixed(1)}%;background:${color}"></i></div>` +
+      `<div class="nums">whole run: ${s.buyer_attempts.toLocaleString()} requests, ` +
+      `${s.buyer_failures.toLocaleString()} refused (${s.stale_failures.toLocaleString()} on a stale view) · ` +
+      `${s.refunded.toLocaleString()} cancelled · ${s.cleared.toLocaleString()} unpaid · limit ${s.per_buyer_limit} per buyer · ${s.cells} cells</div></div>`;
+  }).join("");
+}
+
+function renderCells() {
+  const host = $("cells");
+  if (!BUNDLE || !BUNDLE.cells.length) { host.innerHTML = "<div class='placeholder'>no data yet</div>"; return; }
+  const snapshot = stateAt(BUNDLE.cells, cursor);
+  host.innerHTML = Object.entries(snapshot.sessions).map(([key, remaining]) => {
+    const labels = BUNDLE.cell_labels[key] || [];
+    const empty = remaining.filter((v) => v <= 0).length;
+    return `<div class="alrow"><div class="ttl"><span>${key}</span>` +
+      `<span>${labels.length} cells · ${empty} empty</span></div><div class="cellstrip">` +
+      remaining.map((value, index) => {
+        const [cell, label, capacity] = labels[index] || [[index, 0], "", 0];
+        // an empty cell is a short red stub; a cell with tickets is as tall as its fill
+        const h = capacity ? Math.max(8, Math.round(100 * value / capacity)) : 8;
+        const cls = value <= 0 ? "empty" : "";
+        return `<i class="${cls}" style="height:${value <= 0 ? 8 : h}%" title="${label || "cell " + cell.join(",")}: ${value} of ${capacity} left"></i>`;
+      }).join("") + `</div></div>`;
+  }).join("");
+}
+
+function renderMetrics() {
+  // the end-of-run numbers have exactly one source: the summary of this run
+  const final = BUNDLE ? BUNDLE.summary : {};
+  const sample = BUNDLE ? (stateAt(BUNDLE.samples, cursor) || {}) : {};
+  const number = (v) => (v === undefined || v === null) ? undefined : v.toLocaleString();
+  const fixed = (v, digits) => (v === undefined || v === null) ? undefined
+    : v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const percent = (v) => (v === undefined || v === null) ? undefined : (v * 100).toFixed(1) + "%";
+  const group = (title, note, pairs) =>
+    `<div class="kvgrp"><h3>${title}<span>${note}</span></h3><div class="kvrow">` +
+    pairs.map(([k, v, hint]) => `<div class="chip"${hint ? ` title="${hint}"` : ""}><i>${k}</i><b>${v === undefined ? "-" : v}</b></div>`).join("") +
+    `</div></div>`;
+  $("metrics").innerHTML =
+    group("At the playhead", "moves with the playback", [
+      ["on sale", number(sample.total)], ["tickets granted", number(sample.tickets)],
+      ["requests", number(sample.attempts)], ["refused", number(sample.failures)],
+    ]) +
+    group("Whole run", "fixed", [
+      ["sell-through", percent(final.sell_through), "tickets held at the end / seats"],
+      ["first sell-out", final.first_sold_out_at === null ? "never" : (final.first_sold_out_at !== undefined ? final.first_sold_out_at.toFixed(1) + "s" : undefined)],
+      ["unsold at the end", number(final.stranded_stock)],
+      ["refused share", percent(final.buyer_failure_rate)],
+      ["refused: stale view", number(final.buyer_stale_failures), "the cell held less than the buyer had seen"],
+      ["cancelled", number(final.refunded), "seats back on sale at once"],
+      ["unpaid", number(final.cleared), "seats back with the next batch"],
+      ["platform requests", number(final.traffic_total), "inventory views, submits, polls and checkouts"],
+      ["requests / s", fixed(final.requests_per_second, 0)],
+      ["requests / ticket", fixed(final.requests_per_ticket, 1)],
+      ["conservation", final.conservation_ok === undefined ? undefined : (final.conservation_ok ? "OK" : "✗"),
+       "capacity = on sale + pending + paid, in every cell"],
+      ["rule violations", number(final.rule_violations), "must stay 0"],
+    ]);
+}
+
+function setStatus(text) { $("status").textContent = text; }
+
+/* ---------------------------------------------------------------- tooltips */
+function showTip(info, event) {
+  const tip = $("tip"); tip.className = "tip";
+  const rows = (pairs) => "<table>" +
+    pairs.map(([k, v]) => `<tr><td class="k">${k}</td><td>${v}</td></tr>`).join("") + "</table>";
+  if (info.type === "batch") {
+    tip.innerHTML = `<h4>${info.session} · ${info.qty} seats back on sale</h4>` + rows([
+      ["what", "the seats of unpaid orders, released together"],
+      ["at", `${info.t.toFixed(2)}s`],
+      ["on sale (all sessions)", `${Math.round(info.level).toLocaleString()}`],
+    ]);
+  } else {
+    tip.innerHTML = `<h4>${info.session} sold out</h4>` + rows([["at", `${info.t.toFixed(2)}s`]]);
+  }
+  tip.style.display = "block";
+  moveTip(event);
+}
+
+function showLineTip(col, event) {
+  const tip = $("tip"); tip.className = "tip line";
+  const sample = stateAt(BUNDLE.samples, col.t) || { rem: {} };
+  tip.innerHTML = `<h4>t = ${col.t.toFixed(2)}s</h4><div class="sec">tickets on sale</div><table>` +
+    `<tr><td class="k">all sessions</td><td>${Math.round(col.value).toLocaleString()}</td></tr>` +
+    Object.entries(sample.rem).map(([key, value]) =>
+      `<tr><td class="k">${key}</td><td>${value.toLocaleString()}</td></tr>`).join("") +
+    `<tr><td class="k">load</td><td>${Math.round(levelAt(loadSeries, col.t)).toLocaleString()} req/s</td></tr></table>`;
+  tip.style.display = "block";
+  moveTip(event);
+}
+
+function moveTip(event) {
+  const tip = $("tip");
+  if (tip.style.display === "none") return;
+  const pad = 14;
+  const w = tip.offsetWidth || 240, h = tip.offsetHeight || 120;
+  let left = event.clientX + pad, top = event.clientY + pad;
+  if (left + w > window.innerWidth - 8) left = event.clientX - w - pad;
+  if (top + h > window.innerHeight - 8) top = event.clientY - h - pad;
+  tip.style.left = Math.max(4, left) + "px";
+  tip.style.top = Math.max(4, top) + "px";
+}
+function hideTip() { $("tip").style.display = "none"; }
+
+/* ---------------------------------------------------------------- interaction */
+$("chart").addEventListener("mouseover", (event) => {
+  const id = event.target.getAttribute && event.target.getAttribute("data-id");
+  if (id && markerInfo[id]) { hoverColumn = null; showTip(markerInfo[id], event); }
+});
+$("chart").addEventListener("mousemove", (event) => {
+  if (!BUNDLE) return;
+  const id = event.target.getAttribute && event.target.getAttribute("data-id");
+  if (id && markerInfo[id]) { moveTip(event); return; }
+  const rect = $("chart").getBoundingClientRect();
+  if (!rect || !rect.width) return;
+  const mx = (event.clientX - rect.left) * (CHART.W / rect.width);
+  if (mx < CHART.L || mx > CHART.W - CHART.R) { hoverColumn = null; hideTip(); return; }
+  const col = nearestColumn(mx);
+  if (!col) return;
+  hoverColumn = col;
+  showLineTip(col, event);
+});
+$("chart").addEventListener("mouseout", () => { hoverColumn = null; hideTip(); });
+
+function nearestColumn(mx) {
+  if (!chartColumns.length) return null;
+  let best = chartColumns[0], bestDistance = Infinity;
+  for (const col of chartColumns) {
+    const d = Math.abs(col.x - mx);
+    if (d < bestDistance) { bestDistance = d; best = col; }
+  }
+  return best;
+}
+
+/* zoom: wheel zooms around the playhead, drag pans, click jumps, double click resets */
+function zoomAround(factor) {
+  const model = chartModel();
+  const axis = axisFor(model);
+  const t = cursor;
+  const span = (axis.tMax - axis.tMin) * factor;
+  let nextMin = t - span / 2;
+  let nextMax = t + span / 2;
+  const dataMax = Math.max(model.now, 1);
+  nextMin = Math.max(0, nextMin);
+  nextMax = Math.min(Math.max(nextMax, nextMin + 0.5), dataMax * 1.02);
+  zoom = (nextMax - nextMin >= dataMax * 0.97) ? null : { tMin: nextMin, tMax: nextMax };
+  renderChart(); updateCursorViews();
+}
+function panBy(deltaSeconds) {
+  if (!zoom) return;
+  const model = chartModel();
+  const dataMax = Math.max(model.now, 1);
+  const span = zoom.tMax - zoom.tMin;
+  let nextMin = zoom.tMin + deltaSeconds, nextMax = zoom.tMax + deltaSeconds;
+  if (nextMin < 0) { nextMin = 0; nextMax = span; }
+  if (nextMax > dataMax * 1.02) { nextMax = dataMax * 1.02; nextMin = Math.max(0, nextMax - span); }
+  zoom = { tMin: nextMin, tMax: nextMax };
+  renderChart(); updateCursorViews();
+}
+let dragFrom = null;
+$("chart").addEventListener("wheel", (event) => {
+  if (!BUNDLE) return;
+  event.preventDefault();
+  zoomAround(event.deltaY > 0 ? 1.25 : 1 / 1.25);
+}, { passive: false });
+$("chart").addEventListener("mousedown", (event) => {
+  if (!zoom) return;
+  dragFrom = { x: event.clientX, axis: axisFor(chartModel()) };
+});
+window.addEventListener("mouseup", () => { dragFrom = null; });
+window.addEventListener("mousemove", (event) => {
+  if (!dragFrom) return;
+  const inner = CHART.W - CHART.L - CHART.R;
+  const rect = $("chart").getBoundingClientRect();
+  if (!rect || !rect.width) return;
+  const dx = (event.clientX - dragFrom.x) * (CHART.W / rect.width);
+  panBy(-dx * ((dragFrom.axis.tMax - dragFrom.axis.tMin) / inner));
+  dragFrom.x = event.clientX;
+});
+$("chart").addEventListener("click", (event) => {
+  if (!BUNDLE) return;
+  if (event.target.getAttribute && event.target.getAttribute("data-id")) return;   // a marker
+  const rect = $("chart").getBoundingClientRect();
+  if (!rect || !rect.width) return;
+  const mx = (event.clientX - rect.left) * (CHART.W / rect.width);
+  if (mx < CHART.L || mx > CHART.W - CHART.R) return;
+  const t = timeAt(axisFor(chartModel()), mx);
+  cursor = Math.max(0, Math.min(BUNDLE.duration, t));
+  updateCursorViews();
+});
+$("chart").addEventListener("dblclick", () => { zoom = null; if (BUNDLE) { renderChart(); updateCursorViews(); } });
+
+/* ---------------------------------------------------------------- helpers */
+async function post(url, body) {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { $("err").textContent = data.error || ("HTTP " + res.status); }
+  return data;
+}
+async function get(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+/* dark / light: only the CSS variables change, the charts follow */
+const THEME_KEY = "ticketsim-theme";
+function applyTheme(theme) {
+  document.body.classList.toggle("dark", theme === "dark");
+  $("btn-theme").textContent = theme === "dark" ? "☀️" : "🌙";
+  try { localStorage.setItem(THEME_KEY, theme); } catch (err) { /* private mode */ }
+}
+$("btn-theme").addEventListener("click", () => {
+  applyTheme(document.body.classList.contains("dark") ? "light" : "dark");
+});
+let savedTheme = "light";
+try { savedTheme = localStorage.getItem(THEME_KEY) || "light"; } catch (err) { /* private mode */ }
+applyTheme(savedTheme);
+
+bootstrap();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+# the Rust toolchain installed by mise (mise.toml) and the build outputs
+.rustup/
+.cargo/
+core/target/
+ticketsim/ticketsim_core*.so
+ticketsim/ticketsim_core*.pyd
+
+# batch outputs written by the CLI (the committed report lives in results/)
+out/

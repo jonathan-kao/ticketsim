@@ -1,0 +1,36 @@
+# Toolchain of ticketsim (the Rust world core - docs/ENGINEERING.md).
+#
+# Everything stays inside this folder: rustup and cargo live in ./.rustup and
+# ./.cargo (git-ignored), nothing is written to ~/.rustup or ~/.cargo.
+#
+#   mise trust && mise install     # once
+#   mise run build                 # build ticketsim/ticketsim_core.abi3.so
+#   mise run test                  # cargo tests + the Python suite + golden check (both engines)
+
+[tools]
+rust = "1.100.0"
+
+[settings.rust]
+rustup_home = "{{config_root}}/.rustup"
+cargo_home = "{{config_root}}/.cargo"
+
+[env]
+RUSTUP_HOME = "{{config_root}}/.rustup"
+CARGO_HOME = "{{config_root}}/.cargo"
+# PyO3 builds against the interpreter that runs the simulator.
+PYO3_PYTHON = "python3"
+PYTHONPATH = "{{config_root}}"
+
+[tasks.build]
+description = "Build the Rust world core and install it into the ticketsim package"
+run = "python3 scripts/build_core.py"
+
+[tasks.test]
+description = "Rust unit tests, the Python suite and the golden check on both engines"
+depends = ["build"]
+run = [
+  "cargo test --manifest-path core/Cargo.toml --package ticketsim-world --release --locked",
+  "python3 -m unittest discover -s tests",
+  "python3 scripts/make_golden.py --check",
+  "TICKETSIM_BACKEND=python python3 scripts/make_golden.py --check",
+]
