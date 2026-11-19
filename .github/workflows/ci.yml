@@ -9,7 +9,7 @@ jobs:
   test:
     # The golden fixtures are bit exact and use the platform's libm, so CI runs
     # on the platform they were written on (macOS, arm64).
-    runs-on: macos-14
+    runs-on: macos-latest
     env:
       MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
     steps:

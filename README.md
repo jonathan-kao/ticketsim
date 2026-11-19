@@ -105,7 +105,6 @@ platform decides on what the cell holds `delay + poll_seconds` later.
 
 ```mermaid
 stateDiagram-v2
-    direction LR
     [*] --> Look: sale opens
     Look --> Request: a cell has tickets
     Look --> Waiting: everything is gone
